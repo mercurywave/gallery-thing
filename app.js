@@ -7,7 +7,7 @@ class GalleryApp {
         this.thumbnails = [];
         this.hoverTimeout = null;
         this.zoomLevel = 1.0;
-        this.minZoom = 0.5;
+        this.minZoom = 1.0;
         this.maxZoom = 3.0;
         this.zoomStep = 0.2;
         
