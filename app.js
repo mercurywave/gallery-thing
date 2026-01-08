@@ -6,10 +6,15 @@ class GalleryApp {
         this.slideshowInterval = null;
         this.thumbnails = [];
         this.hoverTimeout = null;
+        this.zoomLevel = 1.0;
+        this.minZoom = 0.5;
+        this.maxZoom = 3.0;
+        this.zoomStep = 0.2;
         
         this.initializeElements();
         this.bindEvents();
         this.setupKeyboardNavigation();
+        this.setupZoomControls();
     }
     
     initializeElements() {
@@ -116,6 +121,10 @@ class GalleryApp {
             this.currentImage.alt = this.images[this.currentIndex].name;
             this.currentImage.style.display = 'block';
             
+            // Reset zoom level when showing new image
+            this.zoomLevel = 1.0;
+            this.applyZoom();
+            
             // Update active thumbnail
             this.updateActiveThumbnail();
         }
@@ -200,8 +209,118 @@ class GalleryApp {
                     e.preventDefault();
                     this.toggleSlideshow();
                     break;
+                case '+':
+                case '=':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        this.zoomIn();
+                    }
+                    break;
+                case '-':
+                case '_':
+                    if (e.ctrlKey || e.metaKey) {
+                        e.preventDefault();
+                        this.zoomOut();
+                    }
+                    break;
             }
         });
+    }
+    
+    setupZoomControls() {
+        // Add wheel event listener for zooming
+        this.galleryContainer.addEventListener('wheel', this.handleWheelZoom.bind(this), { passive: false });
+        
+        // Store initial touch positions for pinch zoom
+        this.touchStartDistance = 0;
+        this.isPinching = false;
+    }
+    
+    handleWheelZoom(e) {
+        e.preventDefault();
+        
+        // Only zoom when hovering over the image area
+        if (!this.currentImage.contains(e.target)) return;
+        
+        const delta = e.deltaY > 0 ? -1 : 1;
+        const newZoomLevel = this.zoomLevel + (delta * this.zoomStep);
+        
+        // Limit zoom range
+        this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, newZoomLevel));
+        
+        // Apply zoom to the image
+        this.applyZoom();
+    }
+    
+    handleTouchStart(e) {
+        if (e.touches.length === 2) {
+            this.isPinching = true;
+            this.touchStartDistance = Math.sqrt(
+                Math.pow(e.touches[1].clientX - e.touches[0].clientX, 2) +
+                Math.pow(e.touches[1].clientY - e.touches[0].clientY, 2)
+            );
+        } else {
+            this.touchStartX = e.touches[0].clientX;
+        }
+    }
+    
+    handleTouchMove(e) {
+        if (!this.touchStartX && !this.isPinching) return;
+        
+        // Handle pinch zoom
+        if (e.touches.length === 2 && this.isPinching) {
+            e.preventDefault();
+            const currentDistance = Math.sqrt(
+                Math.pow(e.touches[1].clientX - e.touches[0].clientX, 2) +
+                Math.pow(e.touches[1].clientY - e.touches[0].clientY, 2)
+            );
+            
+            const scale = currentDistance / this.touchStartDistance;
+            const newZoomLevel = this.zoomLevel * scale;
+            
+            // Limit zoom range
+            this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, newZoomLevel));
+            this.applyZoom();
+            
+            this.touchStartDistance = currentDistance;
+        } else if (!this.isPinching) {
+            // Handle swipe navigation (existing code)
+            if (!this.touchStartX) return;
+            
+            const touchX = e.touches[0].clientX;
+            const diffX = this.touchStartX - touchX;
+            
+            // Only trigger navigation for significant horizontal swipes
+            if (Math.abs(diffX) > 50) {
+                if (diffX > 0) {
+                    this.navigateToNext();
+                } else {
+                    this.navigateToPrevious();
+                }
+                this.touchStartX = null; // Reset to prevent multiple triggers
+            }
+        }
+    }
+    
+    handleTouchEnd(e) {
+        this.touchStartX = null;
+        this.isPinching = false;
+    }
+    
+    zoomIn() {
+        this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + this.zoomStep);
+        this.applyZoom();
+    }
+    
+    zoomOut() {
+        this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - this.zoomStep);
+        this.applyZoom();
+    }
+    
+    applyZoom() {
+        // Apply scale transform to the image
+        this.currentImage.style.transform = `scale(${this.zoomLevel})`;
+        this.currentImage.style.transformOrigin = 'center center';
     }
     
     showControls() {
@@ -221,32 +340,6 @@ class GalleryApp {
             this.thumbnailStrip.classList.remove('visible');
             this.navigationControls.classList.remove('visible');
         }, 1000);
-    }
-    
-    // Touch swipe handling for mobile
-    handleTouchStart(e) {
-        this.touchStartX = e.touches[0].clientX;
-    }
-    
-    handleTouchMove(e) {
-        if (!this.touchStartX) return;
-        
-        const touchX = e.touches[0].clientX;
-        const diffX = this.touchStartX - touchX;
-        
-        // Only trigger navigation for significant horizontal swipes
-        if (Math.abs(diffX) > 50) {
-            if (diffX > 0) {
-                this.navigateToNext();
-            } else {
-                this.navigateToPrevious();
-            }
-            this.touchStartX = null; // Reset to prevent multiple triggers
-        }
-    }
-    
-    handleTouchEnd() {
-        this.touchStartX = null;
     }
 }
 
