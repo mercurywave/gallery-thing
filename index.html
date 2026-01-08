@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gallery App</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="dropZone" class="drop-zone">
+        <div id="galleryContainer" class="gallery-container">
+            <img id="currentImage" class="current-image" src="" alt="Current image">
+        </div>
+        
+        <div id="thumbnailStrip" class="thumbnail-strip">
+            <!-- Thumbnails will be added here dynamically -->
+        </div>
+        
+        <div id="navigationControls" class="navigation-controls">
+            <button id="prevBtn" class="nav-btn">←</button>
+            <button id="playPauseBtn" class="play-pause-btn">▶</button>
+            <button id="nextBtn" class="nav-btn">→</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
