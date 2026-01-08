@@ -6,17 +6,12 @@ class GalleryApp {
         this.slideshowInterval = null;
         this.thumbnails = [];
         this.hoverTimeout = null;
-        this.zoomLevel = 1.0;
-        this.minZoom = 1.0;
-        this.maxZoom = 3.0;
-        this.zoomStep = 0.2;
-        
+
         this.initializeElements();
         this.bindEvents();
         this.setupKeyboardNavigation();
-        this.setupZoomControls();
     }
-    
+
     initializeElements() {
         this.dropZone = document.getElementById('dropZone');
         this.galleryContainer = document.getElementById('galleryContainer');
@@ -27,74 +22,74 @@ class GalleryApp {
         this.nextBtn = document.getElementById('nextBtn');
         this.playPauseBtn = document.getElementById('playPauseBtn');
     }
-    
+
     bindEvents() {
         // Drag and drop events
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             this.dropZone.addEventListener(eventName, this.preventDefaults, false);
         });
-        
+
         this.dropZone.addEventListener('drop', this.handleDrop.bind(this), false);
-        
+
         // Navigation buttons
         this.prevBtn.addEventListener('click', () => this.navigateToPrevious());
         this.nextBtn.addEventListener('click', () => this.navigateToNext());
         this.playPauseBtn.addEventListener('click', () => this.toggleSlideshow());
-        
+
         // Hover events for controls
         this.dropZone.addEventListener('mouseenter', () => this.showControls());
         this.dropZone.addEventListener('mouseleave', () => this.hideControls());
-        
+
         // Touch events for mobile
         this.galleryContainer.addEventListener('touchstart', this.handleTouchStart.bind(this), false);
         this.galleryContainer.addEventListener('touchmove', this.handleTouchMove.bind(this), false);
         this.galleryContainer.addEventListener('touchend', this.handleTouchEnd.bind(this), false);
     }
-    
+
     preventDefaults(e) {
         e.preventDefault();
         e.stopPropagation();
     }
-    
+
     handleDrop(e) {
         const dt = e.dataTransfer;
         const files = dt.files;
-        
+
         if (files.length > 0) {
             this.processFiles(files);
         }
     }
-    
+
     processFiles(files) {
         Array.from(files).forEach(file => {
             if (file.type.startsWith('image/')) {
                 const reader = new FileReader();
-                
+
                 reader.onload = (e) => {
                     const imageData = {
                         src: e.target.result,
                         name: file.name
                     };
-                    
+
                     this.images.push(imageData);
                     this.updateGallery();
-                    
+
                     // If this is the first image, show it
                     if (this.images.length === 1) {
                         this.showCurrentImage();
                     }
                 };
-                
+
                 reader.readAsDataURL(file);
             }
         });
     }
-    
+
     updateGallery() {
         // Clear existing thumbnails
         this.thumbnailStrip.innerHTML = '';
         this.thumbnails = [];
-        
+
         // Create new thumbnails
         this.images.forEach((image, index) => {
             const thumbnail = document.createElement('img');
@@ -102,34 +97,30 @@ class GalleryApp {
             thumbnail.alt = image.name;
             thumbnail.className = 'thumbnail';
             thumbnail.dataset.index = index;
-            
+
             thumbnail.addEventListener('click', () => {
                 this.navigateToImage(index);
             });
-            
+
             this.thumbnailStrip.appendChild(thumbnail);
             this.thumbnails.push(thumbnail);
         });
-        
+
         // Update active thumbnail
         this.updateActiveThumbnail();
     }
-    
+
     showCurrentImage() {
         if (this.images.length > 0) {
             this.currentImage.src = this.images[this.currentIndex].src;
             this.currentImage.alt = this.images[this.currentIndex].name;
             this.currentImage.style.display = 'block';
-            
-            // Reset zoom level when showing new image
-            this.zoomLevel = 1.0;
-            this.applyZoom();
-            
+
             // Update active thumbnail
             this.updateActiveThumbnail();
         }
     }
-    
+
     updateActiveThumbnail() {
         this.thumbnails.forEach((thumbnail, index) => {
             if (index === this.currentIndex) {
@@ -139,28 +130,28 @@ class GalleryApp {
             }
         });
     }
-    
+
     navigateToImage(index) {
         if (index >= 0 && index < this.images.length) {
             this.currentIndex = index;
             this.showCurrentImage();
         }
     }
-    
+
     navigateToPrevious() {
         if (this.images.length > 0) {
             this.currentIndex = (this.currentIndex - 1 + this.images.length) % this.images.length;
             this.showCurrentImage();
         }
     }
-    
+
     navigateToNext() {
         if (this.images.length > 0) {
             this.currentIndex = (this.currentIndex + 1) % this.images.length;
             this.showCurrentImage();
         }
     }
-    
+
     toggleSlideshow() {
         if (this.isSlideshowPlaying) {
             this.stopSlideshow();
@@ -168,35 +159,35 @@ class GalleryApp {
             this.startSlideshow();
         }
     }
-    
+
     startSlideshow() {
         if (this.images.length < 2) return;
-        
+
         this.isSlideshowPlaying = true;
         this.playPauseBtn.textContent = '❚❚';
         this.playPauseBtn.classList.add('playing');
-        
+
         this.slideshowInterval = setInterval(() => {
             this.navigateToNext();
         }, 3000); // Change image every 3 seconds
     }
-    
+
     stopSlideshow() {
         this.isSlideshowPlaying = false;
         this.playPauseBtn.textContent = '▶';
         this.playPauseBtn.classList.remove('playing');
-        
+
         if (this.slideshowInterval) {
             clearInterval(this.slideshowInterval);
             this.slideshowInterval = null;
         }
     }
-    
+
     setupKeyboardNavigation() {
         document.addEventListener('keydown', (e) => {
             if (this.images.length === 0) return;
-            
-            switch(e.key) {
+
+            switch (e.key) {
                 case 'ArrowLeft':
                     e.preventDefault();
                     this.navigateToPrevious();
@@ -209,137 +200,53 @@ class GalleryApp {
                     e.preventDefault();
                     this.toggleSlideshow();
                     break;
-                case '+':
-                case '=':
-                    if (e.ctrlKey || e.metaKey) {
-                        e.preventDefault();
-                        this.zoomIn();
-                    }
-                    break;
-                case '-':
-                case '_':
-                    if (e.ctrlKey || e.metaKey) {
-                        e.preventDefault();
-                        this.zoomOut();
-                    }
-                    break;
             }
         });
     }
-    
-    setupZoomControls() {
-        // Add wheel event listener for zooming
-        this.galleryContainer.addEventListener('wheel', this.handleWheelZoom.bind(this), { passive: false });
-        
-        // Store initial touch positions for pinch zoom
-        this.touchStartDistance = 0;
-        this.isPinching = false;
-    }
-    
-    handleWheelZoom(e) {
-        e.preventDefault();
-        
-        // Only zoom when hovering over the image area
-        if (!this.currentImage.contains(e.target)) return;
-        
-        const delta = e.deltaY > 0 ? -1 : 1;
-        const newZoomLevel = this.zoomLevel + (delta * this.zoomStep);
-        
-        // Limit zoom range
-        this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, newZoomLevel));
-        
-        // Apply zoom to the image
-        this.applyZoom();
-    }
-    
-    handleTouchStart(e) {
-        if (e.touches.length === 2) {
-            this.isPinching = true;
-            this.touchStartDistance = Math.sqrt(
-                Math.pow(e.touches[1].clientX - e.touches[0].clientX, 2) +
-                Math.pow(e.touches[1].clientY - e.touches[0].clientY, 2)
-            );
-        } else {
-            this.touchStartX = e.touches[0].clientX;
-        }
-    }
-    
-    handleTouchMove(e) {
-        if (!this.touchStartX && !this.isPinching) return;
-        
-        // Handle pinch zoom
-        if (e.touches.length === 2 && this.isPinching) {
-            e.preventDefault();
-            const currentDistance = Math.sqrt(
-                Math.pow(e.touches[1].clientX - e.touches[0].clientX, 2) +
-                Math.pow(e.touches[1].clientY - e.touches[0].clientY, 2)
-            );
-            
-            const scale = currentDistance / this.touchStartDistance;
-            const newZoomLevel = this.zoomLevel * scale;
-            
-            // Limit zoom range
-            this.zoomLevel = Math.max(this.minZoom, Math.min(this.maxZoom, newZoomLevel));
-            this.applyZoom();
-            
-            this.touchStartDistance = currentDistance;
-        } else if (!this.isPinching) {
-            // Handle swipe navigation (existing code)
-            if (!this.touchStartX) return;
-            
-            const touchX = e.touches[0].clientX;
-            const diffX = this.touchStartX - touchX;
-            
-            // Only trigger navigation for significant horizontal swipes
-            if (Math.abs(diffX) > 50) {
-                if (diffX > 0) {
-                    this.navigateToNext();
-                } else {
-                    this.navigateToPrevious();
-                }
-                this.touchStartX = null; // Reset to prevent multiple triggers
-            }
-        }
-    }
-    
-    handleTouchEnd(e) {
-        this.touchStartX = null;
-        this.isPinching = false;
-    }
-    
-    zoomIn() {
-        this.zoomLevel = Math.min(this.maxZoom, this.zoomLevel + this.zoomStep);
-        this.applyZoom();
-    }
-    
-    zoomOut() {
-        this.zoomLevel = Math.max(this.minZoom, this.zoomLevel - this.zoomStep);
-        this.applyZoom();
-    }
-    
-    applyZoom() {
-        // Apply scale transform to the image
-        this.currentImage.style.transform = `scale(${this.zoomLevel})`;
-        this.currentImage.style.transformOrigin = 'center center';
-    }
-    
+
     showControls() {
         // Clear any existing timeout
         if (this.hoverTimeout) {
             clearTimeout(this.hoverTimeout);
         }
-        
+
         // Show thumbnail strip and navigation controls
         this.thumbnailStrip.classList.add('visible');
         this.navigationControls.classList.add('visible');
     }
-    
+
     hideControls() {
         // Delay hiding to allow smooth transitions
         this.hoverTimeout = setTimeout(() => {
             this.thumbnailStrip.classList.remove('visible');
             this.navigationControls.classList.remove('visible');
         }, 1000);
+    }
+
+    // Touch swipe handling for mobile
+    handleTouchStart(e) {
+        this.touchStartX = e.touches[0].clientX;
+    }
+
+    handleTouchMove(e) {
+        if (!this.touchStartX) return;
+
+        const touchX = e.touches[0].clientX;
+        const diffX = this.touchStartX - touchX;
+
+        // Only trigger navigation for significant horizontal swipes
+        if (Math.abs(diffX) > 50) {
+            if (diffX > 0) {
+                this.navigateToNext();
+            } else {
+                this.navigateToPrevious();
+            }
+            this.touchStartX = null; // Reset to prevent multiple triggers
+        }
+    }
+
+    handleTouchEnd() {
+        this.touchStartX = null;
     }
 }
 
