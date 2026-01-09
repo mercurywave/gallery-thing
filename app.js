@@ -3,13 +3,15 @@ class GalleryApp {
         this.images = [];
         this.currentIndex = 0;
         this.isSlideshowPlaying = false;
-        this.slideshowInterval = null;
         this.thumbnails = [];
         this.hoverTimeout = null;
         this.zoomLevel = 1;
         this.translateX = 0;
         this.translateY = 0;
         this.isZooming = false;
+        this.videoStartTime = null;
+        this.videoDuration = null;
+        this.slideDuration = 5000;
 
         this.initializeElements();
         this.bindEvents();
@@ -20,6 +22,7 @@ class GalleryApp {
         this.dropZone = document.getElementById('dropZone');
         this.galleryContainer = document.getElementById('galleryContainer');
         this.currentImage = document.getElementById('currentImage');
+        this.currentVideo = document.getElementById('currentVideo');
         this.thumbnailStrip = document.getElementById('thumbnailStrip');
         this.navigationControls = document.getElementById('navigationControls');
         this.prevBtn = document.getElementById('prevBtn');
@@ -52,12 +55,50 @@ class GalleryApp {
         // Mouse wheel zooming
         this.galleryContainer.addEventListener('wheel', this.handleMouseZoom.bind(this), { passive: false });
 
-        // Reset zoom when clicking on image
+        // Reset zoom when clicking on image/video
         this.currentImage.addEventListener('click', () => {
+            // Skip zoom reset for videos
+            if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
+                return;
+            }
+            
             if (this.isZooming) {
                 this.resetZoom();
                 this.isZooming = false;
             }
+        });
+        
+        // Handle video end events for slideshow functionality
+        this.currentVideo.addEventListener('ended', () => {
+            // Only advance in slideshow mode
+            if (this.isSlideshowPlaying) {
+                // Only navigate to next slide if at least 3 seconds have passed since video start
+                if (Date.now() - this.videoStartTime >= this.slideDuration) {
+                    this.navigateToNext();
+                }
+                else{
+                    this.currentVideo.play();
+                }
+            }
+        });
+        
+        // Handle video loaded metadata to get duration
+        this.currentVideo.addEventListener('loadedmetadata', () => {
+            if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
+                this.videoDuration = this.currentVideo.duration;
+            }
+        });
+        
+        // Handle video play event to track when it starts
+        this.currentVideo.addEventListener('play', () => {
+            if (this.images.length > 0 && this.images[this.currentIndex].type === 'video' && this.videoStartTime == null) {
+                this.videoStartTime = Date.now();
+            }
+        });
+        
+        // Handle video loading errors
+        this.currentVideo.addEventListener('error', () => {
+            console.error('Error loading video');
         });
     }
 
@@ -77,16 +118,17 @@ class GalleryApp {
 
     processFiles(files) {
         Array.from(files).forEach(file => {
-            if (file.type.startsWith('image/')) {
+            if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
                 const reader = new FileReader();
 
                 reader.onload = (e) => {
-                    const imageData = {
+                    const mediaData = {
                         src: e.target.result,
-                        name: file.name
+                        name: file.name,
+                        type: file.type.startsWith('image/') ? 'image' : 'video'
                     };
 
-                    this.images.push(imageData);
+                    this.images.push(mediaData);
                     this.updateGallery();
 
                     // If this is the first image, show it
@@ -116,6 +158,11 @@ class GalleryApp {
             thumbnail.className = 'thumbnail';
             thumbnail.dataset.index = index;
 
+            // Set appropriate thumbnail for video files
+            if (image.type === 'video') {
+                thumbnail.style.filter = 'grayscale(100%)'; // Make video thumbnails look different
+            }
+
             thumbnail.addEventListener('click', () => {
                 this.navigateToImage(index);
             });
@@ -130,15 +177,43 @@ class GalleryApp {
 
     showCurrentImage() {
         if (this.images.length > 0) {
-            this.currentImage.src = this.images[this.currentIndex].src;
-            this.currentImage.alt = this.images[this.currentIndex].name;
-            this.currentImage.style.display = 'block';
-
-            // Reset zoom level when changing images
-            this.resetZoom();
+            const currentMedia = this.images[this.currentIndex];
+            
+            if (currentMedia.type === 'video') {
+                // Show video element and hide image
+                this.currentVideo.src = currentMedia.src;
+                this.currentVideo.alt = currentMedia.name;
+                this.currentVideo.style.display = 'block';
+                this.currentImage.style.display = 'none';
+                
+                // Enable auto-play, loop, and mute for videos
+                this.currentVideo.loop = !this.isSlideshowPlaying;
+                if(this.isSlideshowPlaying) this.currentVideo.play();
+                this.currentVideo.muted = true;
+                
+                // Reset video duration tracking
+                this.videoDuration = null;
+                
+                // Disable zoom for videos
+                this.isZooming = false;
+                this.resetZoom();
+            } else {
+                // Show image element and hide video
+                this.currentImage.src = currentMedia.src;
+                this.currentImage.alt = currentMedia.name;
+                this.currentImage.style.display = 'block';
+                this.currentVideo.style.display = 'none';
+                
+                // Disable auto-play, loop, and mute for images
+                this.currentVideo.pause();
+                
+                // Reset zoom level when changing images
+                this.resetZoom();
+            }
 
             // Update active thumbnail
             this.updateActiveThumbnail();
+            this.queueAutoAdvance();
         }
     }
 
@@ -167,6 +242,7 @@ class GalleryApp {
     }
 
     navigateToNext() {
+        this.videoStartTime = null;
         if (this.images.length > 0) {
             this.currentIndex = (this.currentIndex + 1) % this.images.length;
             this.showCurrentImage();
@@ -188,20 +264,26 @@ class GalleryApp {
         this.playPauseBtn.textContent = '❚❚';
         this.playPauseBtn.classList.add('playing');
 
-        this.slideshowInterval = setInterval(() => {
-            this.navigateToNext();
-        }, 3000); // Change image every 3 seconds
+        this.queueAutoAdvance();
+        this.currentVideo.loop = false;
+    }
+
+    queueAutoAdvance(){
+        if (!this.isSlideshowPlaying) return;
+        if (this.images[this.currentIndex].type !== 'image') return;
+        let index = this.currentIndex;
+        setTimeout(() => {
+            if (!this.isSlideshowPlaying) return;
+            if(this.currentIndex === index)
+                this.navigateToNext();
+        }, this.slideDuration);
     }
 
     stopSlideshow() {
         this.isSlideshowPlaying = false;
         this.playPauseBtn.textContent = '▶';
         this.playPauseBtn.classList.remove('playing');
-
-        if (this.slideshowInterval) {
-            clearInterval(this.slideshowInterval);
-            this.slideshowInterval = null;
-        }
+        this.currentVideo.loop = true;
     }
 
     setupKeyboardNavigation() {
@@ -251,6 +333,12 @@ class GalleryApp {
 
     handleMouseZoom(e) {
         e.preventDefault();
+        
+        // Skip zoom for videos
+        if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
+            return;
+        }
+        
         let clientX = e.clientX;
         let clientY = e.clientY;
 
@@ -303,6 +391,11 @@ class GalleryApp {
      * Handle pinch-to-zoom gestures for mobile devices
      */
     handlePinch(e) {
+        // Skip pinch zoom for videos
+        if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
+            return;
+        }
+        
         if (e.touches.length === 2) {
             e.preventDefault();
             
@@ -338,6 +431,11 @@ class GalleryApp {
      * Handle dragging of the zoomed image with one finger
      */
     handleImageDrag(touch) {
+        // Skip dragging for videos
+        if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
+            return;
+        }
+        
         if (!this.isZooming || this.zoomLevel <= 1) return;
         
         // Calculate movement delta
@@ -365,6 +463,11 @@ class GalleryApp {
      * Initialize pinch-to-zoom state when touch starts
      */
     handleTouchStart(e) {
+        // Skip touch start for videos
+        if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
+            return;
+        }
+        
         if (e.touches.length === 2) {
             // Store initial distance for pinch zoom
             const touch1 = e.touches[0];
