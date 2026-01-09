@@ -7,6 +7,8 @@ class GalleryApp {
         this.thumbnails = [];
         this.hoverTimeout = null;
         this.zoomLevel = 1;
+        this.translateX = 0;
+        this.translateY = 0;
         this.isZooming = false;
 
         this.initializeElements();
@@ -48,7 +50,7 @@ class GalleryApp {
         this.galleryContainer.addEventListener('touchend', this.handleTouchEnd.bind(this), false);
 
         // Mouse wheel zooming
-        this.galleryContainer.addEventListener('wheel', this.handleZoom.bind(this), { passive: false });
+        this.galleryContainer.addEventListener('wheel', this.handleMouseZoom.bind(this), { passive: false });
 
         // Reset zoom when clicking on image
         this.currentImage.addEventListener('click', () => {
@@ -244,39 +246,22 @@ class GalleryApp {
         this.touchStartX = e.touches[0].clientX;
     }
 
-    handleTouchMove(e) {
-        if (!this.touchStartX) return;
-
-        const touchX = e.touches[0].clientX;
-        const diffX = this.touchStartX - touchX;
-
-        // Only trigger navigation for significant horizontal swipes
-        if (Math.abs(diffX) > 50) {
-            if (diffX > 0) {
-                this.navigateToNext();
-            } else {
-                this.navigateToPrevious();
-            }
-            this.touchStartX = null; // Reset to prevent multiple triggers
-        }
-    }
-
-    handleTouchEnd() {
-        this.touchStartX = null;
-    }
-
-    handleZoom(e) {
+    handleMouseZoom(e) {
         e.preventDefault();
-
-        const image = this.currentImage;
-        if(!image) return;
+        let clientX = e.clientX;
+        let clientY = e.clientY;
 
         // Calculate zoom factor (adjust the multiplier as needed for sensitivity)
         const zoomIntensity = 0.1;
         const delta = e.deltaY > 0 ? -zoomIntensity : zoomIntensity;
-        let newZoomLevel = this.zoomLevel + delta;
 
-        // Limit zoom levels
+        this.doZoom(this.zoomLevel + delta, clientX, clientY);
+    }
+
+    doZoom(newZoomLevel, clientX, clientY) {
+        const image = this.currentImage;
+        if(!image) return;
+
         if (newZoomLevel < 1.0) {
             newZoomLevel = 1.0;
         } else if (newZoomLevel > 3) {
@@ -285,12 +270,12 @@ class GalleryApp {
 
         // Only update if zoom level actually changed
         if (newZoomLevel !== this.zoomLevel) {
-            
+
             // Get current mouse position relative to the container
             const container = document.getElementById('imageContainer');
             const containerRect = container.getBoundingClientRect();
-            const prevFocusX = e.clientX - containerRect.left;
-            const prevFocusY = e.clientY - containerRect.top;
+            const prevFocusX = clientX - containerRect.left;
+            const prevFocusY = clientY - containerRect.top;
 
             this.zoomLevel = newZoomLevel;
 
@@ -303,70 +288,12 @@ class GalleryApp {
             const offsetY = (prevFocusY - centerY) * (1 - this.zoomLevel);
 
             // Apply both scale and translation
-            image.style.transform = `scale(${this.zoomLevel}) translate(${offsetX}px, ${offsetY}px)`;
+            this.setZoomTranslate(newZoomLevel, offsetX, offsetY);
 
             // Set flag to indicate we're zooming
             this.isZooming = true;
         }
-    }
-
-    /**
-     * Apply zoom transformation with consistent behavior for both mouse wheel and pinch-to-zoom
-     */
-    applyZoom(newZoomLevel, e = null) {
-        const image = this.currentImage;
-        if(!image) return;
-
-        // Limit zoom levels
-        if (newZoomLevel < 1.0) {
-            newZoomLevel = 1.0;
-        } else if (newZoomLevel > 3) {
-            newZoomLevel = 3;
-        }
-
-        // Only update if zoom level actually changed
-        if (newZoomLevel !== this.zoomLevel) {
-            
-            // Get current mouse position relative to the container
-            const container = document.getElementById('imageContainer');
-            const containerRect = container.getBoundingClientRect();
-            
-            let prevFocusX, prevFocusY;
-            
-            // If we have event info (mouse wheel), use mouse coordinates
-            if (e && e.clientX !== undefined) {
-                prevFocusX = e.clientX - containerRect.left;
-                prevFocusY = e.clientY - containerRect.top;
-            } else {
-                // For pinch zoom, center on the midpoint between touches
-                if (e && e.touches && e.touches.length === 2) {
-                    const touch1 = e.touches[0];
-                    const touch2 = e.touches[1];
-                    prevFocusX = (touch1.clientX + touch2.clientX) / 2 - containerRect.left;
-                    prevFocusY = (touch1.clientY + touch2.clientY) / 2 - containerRect.top;
-                } else {
-                    // Default to center if no touch info
-                    prevFocusX = containerRect.width / 2;
-                    prevFocusY = containerRect.height / 2;
-                }
-            }
-
-            this.zoomLevel = newZoomLevel;
-
-            // Apply the zoom transform with position adjustment
-            const centerX = containerRect.width / 2;
-            const centerY = containerRect.height / 2;
-
-            // Calculate offset needed to keep zoom center at specified position
-            const offsetX = (prevFocusX - centerX) * (1 - this.zoomLevel);
-            const offsetY = (prevFocusY - centerY) * (1 - this.zoomLevel);
-
-            // Apply both scale and translation
-            image.style.transform = `scale(${this.zoomLevel}) translate(${offsetX}px, ${offsetY}px)`;
-
-            // Set flag to indicate we're zooming
-            this.isZooming = true;
-        }
+        return newZoomLevel;
     }
 
     /**
@@ -387,15 +314,48 @@ class GalleryApp {
             
             // For pinch zoom, we'll calculate the zoom level based on the change in distance
             if (this.startPinchDistance) {
+                const centerX = (touch1.clientX + touch2.clientX) / 2;
+                const centerY = (touch1.clientY + touch2.clientY) / 2;
                 const zoomFactor = currentDistance / this.startPinchDistance;
                 const newZoomLevel = this.zoomLevel * zoomFactor;
                 
-                this.applyZoom(newZoomLevel, e);
+                this.doZoom(newZoomLevel, centerX, centerY);
             }
             
             // Store initial distance for next calculation
             this.startPinchDistance = currentDistance;
+        } else if (e.touches.length === 1 && this.isZooming) {
+            // Handle one-finger drag when image is zoomed
+            e.preventDefault();
+            this.handleImageDrag(e.touches[0]);
         }
+    }
+
+    /**
+     * Handle dragging of the zoomed image with one finger
+     */
+    handleImageDrag(touch) {
+        if (!this.isZooming || this.zoomLevel <= 1) return;
+        
+        // Calculate movement delta
+        if (this.lastTouchX !== undefined && this.lastTouchY !== undefined) {
+            const deltaX = (touch.clientX - this.lastTouchX) / this.zoomLevel;
+            const deltaY = (touch.clientY - this.lastTouchY) / this.zoomLevel;
+            
+            // Apply the updated transform - preserve scale and update only translation
+            this.setZoomTranslate(this.zoomLevel, this.translateX + deltaX, this.translateY + deltaY);
+        }
+        
+        // Store current touch position for next movement calculation
+        this.lastTouchX = touch.clientX;
+        this.lastTouchY = touch.clientY;
+    }
+
+    setZoomTranslate(zoomLevel, translateX, translateY) {
+        this.zoomLevel = zoomLevel;
+        this.translateX = translateX;
+        this.translateY = translateY
+        this.currentImage.style.transform = `scale(${zoomLevel}) translate(${translateX}px, ${translateY}px)`;
     }
 
     /**
@@ -411,6 +371,11 @@ class GalleryApp {
                 Math.pow(touch2.clientX - touch1.clientX, 2) + 
                 Math.pow(touch2.clientY - touch1.clientY, 2)
             );
+        } else if (e.touches.length === 1) {
+            // Handle one-finger drag for zoomed images
+            this.lastTouchX = e.touches[0].clientX;
+            this.lastTouchY = e.touches[0].clientY;
+            this.isDragging = true;
         } else {
             // Handle regular touch start for swipe
             this.touchStartX = e.touches[0].clientX;
@@ -423,6 +388,9 @@ class GalleryApp {
     handleTouchEnd() {
         this.touchStartX = null;
         this.startPinchDistance = null;
+        this.lastTouchX = undefined;
+        this.lastTouchY = undefined;
+        this.isDragging = false;
     }
 
     resetZoom() {
