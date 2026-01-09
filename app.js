@@ -128,21 +128,44 @@ class GalleryApp {
                         type: file.type.startsWith('image/') ? 'image' : 'video'
                     };
 
-                    this.images.push(mediaData);
-                    this.updateGallery();
-
-                    // If this is the first image, show it
-                    if (this.images.length === 1) {
-                        this.showCurrentImage();
+                    // For videos, we'll generate a thumbnail
+                    if (mediaData.type === 'video') {
+                        this.generateVideoThumbnail(mediaData);
                     } else {
-                        // If there are already images, navigate to the newly added one
-                        this.navigateToImage(this.images.length - 1);
+                        this.images.push(mediaData);
+                        this.updateGallery();
+
+                        // If this is the first image, show it
+                        if (this.images.length === 1) {
+                            this.showCurrentImage();
+                        } else {
+                            // If there are already images, navigate to the newly added one
+                            this.navigateToImage(this.images.length - 1);
+                        }
                     }
                 };
 
                 reader.readAsDataURL(file);
             }
         });
+    }
+
+    generateVideoThumbnail(mediaData) {
+        // For now, use a simple placeholder for video thumbnails instead of trying to extract frames
+        // This ensures we don't get black thumbnails due to browser limitations
+        mediaData.thumbnail = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23fff">VIDEO</text></svg>';
+        
+        // Add to images array
+        this.images.push(mediaData);
+        this.updateGallery();
+
+        // If this is the first image, show it
+        if (this.images.length === 1) {
+            this.showCurrentImage();
+        } else {
+            // If there are already images, navigate to the newly added one
+            this.navigateToImage(this.images.length - 1);
+        }
     }
 
     updateGallery() {
@@ -153,7 +176,9 @@ class GalleryApp {
         // Create new thumbnails
         this.images.forEach((image, index) => {
             const thumbnail = document.createElement('img');
-            thumbnail.src = image.src;
+            
+            // Use thumbnail if available, otherwise use original source
+            thumbnail.src = image.thumbnail || image.src;
             thumbnail.alt = image.name;
             thumbnail.className = 'thumbnail';
             thumbnail.dataset.index = index;
