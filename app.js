@@ -92,6 +92,9 @@ class GalleryApp {
                     // If this is the first image, show it
                     if (this.images.length === 1) {
                         this.showCurrentImage();
+                    } else {
+                        // If there are already images, navigate to the newly added one
+                        this.navigateToImage(this.images.length - 1);
                     }
                 };
 
