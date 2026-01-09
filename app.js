@@ -44,7 +44,7 @@ class GalleryApp {
 
         // Touch events for mobile
         this.galleryContainer.addEventListener('touchstart', this.handleTouchStart.bind(this), false);
-        this.galleryContainer.addEventListener('touchmove', this.handleTouchMove.bind(this), false);
+        this.galleryContainer.addEventListener('touchmove', this.handlePinch.bind(this), false);
         this.galleryContainer.addEventListener('touchend', this.handleTouchEnd.bind(this), false);
 
         // Mouse wheel zooming
@@ -308,6 +308,121 @@ class GalleryApp {
             // Set flag to indicate we're zooming
             this.isZooming = true;
         }
+    }
+
+    /**
+     * Apply zoom transformation with consistent behavior for both mouse wheel and pinch-to-zoom
+     */
+    applyZoom(newZoomLevel, e = null) {
+        const image = this.currentImage;
+        if(!image) return;
+
+        // Limit zoom levels
+        if (newZoomLevel < 1.0) {
+            newZoomLevel = 1.0;
+        } else if (newZoomLevel > 3) {
+            newZoomLevel = 3;
+        }
+
+        // Only update if zoom level actually changed
+        if (newZoomLevel !== this.zoomLevel) {
+            
+            // Get current mouse position relative to the container
+            const container = document.getElementById('imageContainer');
+            const containerRect = container.getBoundingClientRect();
+            
+            let prevFocusX, prevFocusY;
+            
+            // If we have event info (mouse wheel), use mouse coordinates
+            if (e && e.clientX !== undefined) {
+                prevFocusX = e.clientX - containerRect.left;
+                prevFocusY = e.clientY - containerRect.top;
+            } else {
+                // For pinch zoom, center on the midpoint between touches
+                if (e && e.touches && e.touches.length === 2) {
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    prevFocusX = (touch1.clientX + touch2.clientX) / 2 - containerRect.left;
+                    prevFocusY = (touch1.clientY + touch2.clientY) / 2 - containerRect.top;
+                } else {
+                    // Default to center if no touch info
+                    prevFocusX = containerRect.width / 2;
+                    prevFocusY = containerRect.height / 2;
+                }
+            }
+
+            this.zoomLevel = newZoomLevel;
+
+            // Apply the zoom transform with position adjustment
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+
+            // Calculate offset needed to keep zoom center at specified position
+            const offsetX = (prevFocusX - centerX) * (1 - this.zoomLevel);
+            const offsetY = (prevFocusY - centerY) * (1 - this.zoomLevel);
+
+            // Apply both scale and translation
+            image.style.transform = `scale(${this.zoomLevel}) translate(${offsetX}px, ${offsetY}px)`;
+
+            // Set flag to indicate we're zooming
+            this.isZooming = true;
+        }
+    }
+
+    /**
+     * Handle pinch-to-zoom gestures for mobile devices
+     */
+    handlePinch(e) {
+        if (e.touches.length === 2) {
+            e.preventDefault();
+            
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            // Calculate distance between touches
+            const currentDistance = Math.sqrt(
+                Math.pow(touch2.clientX - touch1.clientX, 2) + 
+                Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+            
+            // For pinch zoom, we'll calculate the zoom level based on the change in distance
+            if (this.startPinchDistance) {
+                const zoomFactor = currentDistance / this.startPinchDistance;
+                const newZoomLevel = this.zoomLevel * zoomFactor;
+                
+                this.applyZoom(newZoomLevel, e);
+            }
+            
+            // Store initial distance for next calculation
+            this.startPinchDistance = currentDistance;
+        }
+    }
+
+    /**
+     * Initialize pinch-to-zoom state when touch starts
+     */
+    handleTouchStart(e) {
+        if (e.touches.length === 2) {
+            // Store initial distance for pinch zoom
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            
+            this.startPinchDistance = Math.sqrt(
+                Math.pow(touch2.clientX - touch1.clientX, 2) + 
+                Math.pow(touch2.clientY - touch1.clientY, 2)
+            );
+        } else {
+            // Handle regular touch start for swipe
+            this.touchStartX = e.touches[0].clientX;
+        }
+    }
+
+    /**
+     * Reset pinch state when touch ends
+     */
+    handleTouchEnd() {
+        this.touchStartX = null;
+        this.startPinchDistance = null;
     }
 
     resetZoom() {
