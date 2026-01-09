@@ -61,13 +61,13 @@ class GalleryApp {
             if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
                 return;
             }
-            
+
             if (this.isZooming) {
                 this.resetZoom();
                 this.isZooming = false;
             }
         });
-        
+
         // Handle video end events for slideshow functionality
         this.currentVideo.addEventListener('ended', () => {
             // Only advance in slideshow mode
@@ -76,29 +76,29 @@ class GalleryApp {
                 if (Date.now() - this.videoStartTime >= this.slideDuration) {
                     this.navigateToNext();
                 }
-                else{
+                else {
                     this.currentVideo.play();
                 }
             }
         });
-        
+
         // Handle video loaded metadata to get duration
         this.currentVideo.addEventListener('loadedmetadata', () => {
             if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
                 this.videoDuration = this.currentVideo.duration;
             }
         });
-        
+
         // Handle video play event to track when it starts
         this.currentVideo.addEventListener('play', () => {
             if (this.images.length > 0 && this.images[this.currentIndex].type === 'video' && this.videoStartTime == null) {
                 this.videoStartTime = Date.now();
             }
         });
-        
+
         // Handle video loading errors
-        this.currentVideo.addEventListener('error', () => {
-            console.error('Error loading video');
+        this.currentVideo.addEventListener('error', e => {
+            console.error('Error loading video', e);
         });
     }
 
@@ -130,42 +130,24 @@ class GalleryApp {
 
                     // For videos, we'll generate a thumbnail
                     if (mediaData.type === 'video') {
-                        this.generateVideoThumbnail(mediaData);
-                    } else {
-                        this.images.push(mediaData);
-                        this.updateGallery();
+                        mediaData.thumbnail = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23fff">VIDEO</text></svg>';
+                    }
 
-                        // If this is the first image, show it
-                        if (this.images.length === 1) {
-                            this.showCurrentImage();
-                        } else {
-                            // If there are already images, navigate to the newly added one
-                            this.navigateToImage(this.images.length - 1);
-                        }
+                    this.images.push(mediaData);
+                    this.updateGallery();
+
+                    // If this is the first image, show it
+                    if (this.images.length === 1) {
+                        this.showCurrentImage();
+                    } else {
+                        // If there are already images, navigate to the newly added one
+                        this.navigateToImage(this.images.length - 1);
                     }
                 };
 
                 reader.readAsDataURL(file);
             }
         });
-    }
-
-    generateVideoThumbnail(mediaData) {
-        // For now, use a simple placeholder for video thumbnails instead of trying to extract frames
-        // This ensures we don't get black thumbnails due to browser limitations
-        mediaData.thumbnail = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23fff">VIDEO</text></svg>';
-        
-        // Add to images array
-        this.images.push(mediaData);
-        this.updateGallery();
-
-        // If this is the first image, show it
-        if (this.images.length === 1) {
-            this.showCurrentImage();
-        } else {
-            // If there are already images, navigate to the newly added one
-            this.navigateToImage(this.images.length - 1);
-        }
     }
 
     updateGallery() {
@@ -176,7 +158,7 @@ class GalleryApp {
         // Create new thumbnails
         this.images.forEach((image, index) => {
             const thumbnail = document.createElement('img');
-            
+
             // Use thumbnail if available, otherwise use original source
             thumbnail.src = image.thumbnail || image.src;
             thumbnail.alt = image.name;
@@ -192,6 +174,14 @@ class GalleryApp {
                 this.navigateToImage(index);
             });
 
+            // Handle middle mouse button click to remove item from playlist
+            thumbnail.addEventListener('mouseup', (e) => {
+                if (e.button === 1) { // Middle mouse button
+                    e.preventDefault();
+                    this.removeImageFromPlaylist(index);
+                }
+            });
+
             this.thumbnailStrip.appendChild(thumbnail);
             this.thumbnails.push(thumbnail);
         });
@@ -203,22 +193,22 @@ class GalleryApp {
     showCurrentImage() {
         if (this.images.length > 0) {
             const currentMedia = this.images[this.currentIndex];
-            
+
             if (currentMedia.type === 'video') {
                 // Show video element and hide image
                 this.currentVideo.src = currentMedia.src;
                 this.currentVideo.alt = currentMedia.name;
                 this.currentVideo.style.display = 'block';
                 this.currentImage.style.display = 'none';
-                
+
                 // Enable auto-play, loop, and mute for videos
                 this.currentVideo.loop = !this.isSlideshowPlaying;
-                if(this.isSlideshowPlaying) this.currentVideo.play();
+                if (this.isSlideshowPlaying) this.currentVideo.play();
                 this.currentVideo.muted = true;
-                
+
                 // Reset video duration tracking
                 this.videoDuration = null;
-                
+
                 // Disable zoom for videos
                 this.isZooming = false;
                 this.resetZoom();
@@ -228,10 +218,10 @@ class GalleryApp {
                 this.currentImage.alt = currentMedia.name;
                 this.currentImage.style.display = 'block';
                 this.currentVideo.style.display = 'none';
-                
+
                 // Disable auto-play, loop, and mute for images
                 this.currentVideo.pause();
-                
+
                 // Reset zoom level when changing images
                 this.resetZoom();
             }
@@ -293,13 +283,13 @@ class GalleryApp {
         this.currentVideo.loop = false;
     }
 
-    queueAutoAdvance(){
+    queueAutoAdvance() {
         if (!this.isSlideshowPlaying) return;
         if (this.images[this.currentIndex].type !== 'image') return;
         let index = this.currentIndex;
         setTimeout(() => {
             if (!this.isSlideshowPlaying) return;
-            if(this.currentIndex === index)
+            if (this.currentIndex === index)
                 this.navigateToNext();
         }, this.slideDuration);
     }
@@ -358,12 +348,12 @@ class GalleryApp {
 
     handleMouseZoom(e) {
         e.preventDefault();
-        
+
         // Skip zoom for videos
         if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
             return;
         }
-        
+
         let clientX = e.clientX;
         let clientY = e.clientY;
 
@@ -376,7 +366,7 @@ class GalleryApp {
 
     doZoom(newZoomLevel, clientX, clientY) {
         const image = this.currentImage;
-        if(!image) return;
+        if (!image) return;
 
         if (newZoomLevel < 1.0) {
             newZoomLevel = 1.0;
@@ -420,29 +410,29 @@ class GalleryApp {
         if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
             return;
         }
-        
+
         if (e.touches.length === 2) {
             e.preventDefault();
-            
+
             const touch1 = e.touches[0];
             const touch2 = e.touches[1];
-            
+
             // Calculate distance between touches
             const currentDistance = Math.sqrt(
-                Math.pow(touch2.clientX - touch1.clientX, 2) + 
+                Math.pow(touch2.clientX - touch1.clientX, 2) +
                 Math.pow(touch2.clientY - touch1.clientY, 2)
             );
-            
+
             // For pinch zoom, we'll calculate the zoom level based on the change in distance
             if (this.startPinchDistance) {
                 const centerX = (touch1.clientX + touch2.clientX) / 2;
                 const centerY = (touch1.clientY + touch2.clientY) / 2;
                 const zoomFactor = currentDistance / this.startPinchDistance;
                 const newZoomLevel = this.zoomLevel * zoomFactor;
-                
+
                 this.doZoom(newZoomLevel, centerX, centerY);
             }
-            
+
             // Store initial distance for next calculation
             this.startPinchDistance = currentDistance;
         } else if (e.touches.length === 1 && this.isZooming) {
@@ -460,18 +450,18 @@ class GalleryApp {
         if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
             return;
         }
-        
+
         if (!this.isZooming || this.zoomLevel <= 1) return;
-        
+
         // Calculate movement delta
         if (this.lastTouchX !== undefined && this.lastTouchY !== undefined) {
             const deltaX = (touch.clientX - this.lastTouchX) / this.zoomLevel;
             const deltaY = (touch.clientY - this.lastTouchY) / this.zoomLevel;
-            
+
             // Apply the updated transform - preserve scale and update only translation
             this.setZoomTranslate(this.zoomLevel, this.translateX + deltaX, this.translateY + deltaY);
         }
-        
+
         // Store current touch position for next movement calculation
         this.lastTouchX = touch.clientX;
         this.lastTouchY = touch.clientY;
@@ -492,14 +482,14 @@ class GalleryApp {
         if (this.images.length > 0 && this.images[this.currentIndex].type === 'video') {
             return;
         }
-        
+
         if (e.touches.length === 2) {
             // Store initial distance for pinch zoom
             const touch1 = e.touches[0];
             const touch2 = e.touches[1];
-            
+
             this.startPinchDistance = Math.sqrt(
-                Math.pow(touch2.clientX - touch1.clientX, 2) + 
+                Math.pow(touch2.clientX - touch1.clientX, 2) +
                 Math.pow(touch2.clientY - touch1.clientY, 2)
             );
         } else if (e.touches.length === 1) {
@@ -526,10 +516,48 @@ class GalleryApp {
 
     resetZoom() {
         const image = this.currentImage;
-        if(!image) return;
+        if (!image) return;
         this.zoomLevel = 1;
         image.style.transform = 'scale(1)';
         image.style.transformOrigin = 'center center';
+    }
+
+    removeImageFromPlaylist(index) {
+        // Remove the item from the playlist
+        this.images.splice(index, 1);
+
+        // If we're removing the currently displayed item
+        if (index === this.currentIndex) {
+            // If there are no more items, clear the display
+            if (this.images.length === 0) {
+                if (this.currentImage.src !== '') {
+                    this.currentImage.src = '';
+                    this.currentImage.style.display = 'none';
+                }
+                if (this.currentVideo.src !== '') {
+                    this.currentVideo.src = '';
+                    this.currentVideo.style.display = 'none';
+                }
+            }
+            // If there are items left, navigate to the next item or previous if at end
+            else {
+                // If we're removing an item after the current one, currentIndex stays the same
+                // If we're removing the current item, we need to adjust index
+                if (index >= this.images.length) {
+                    this.currentIndex = this.images.length - 1;
+                }
+
+                // Show the next image in the playlist
+                this.showCurrentImage();
+            }
+        }
+        // If removing an item that comes before the current one, adjust currentIndex
+        else if (index < this.currentIndex) {
+            this.currentIndex--;
+        }
+
+        // Update the gallery to reflect the removal
+        this.updateGallery();
     }
 }
 
