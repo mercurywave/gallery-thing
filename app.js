@@ -6,6 +6,8 @@ class GalleryApp {
         this.slideshowInterval = null;
         this.thumbnails = [];
         this.hoverTimeout = null;
+        this.zoomLevel = 1;
+        this.isZooming = false;
 
         this.initializeElements();
         this.bindEvents();
@@ -44,6 +46,17 @@ class GalleryApp {
         this.galleryContainer.addEventListener('touchstart', this.handleTouchStart.bind(this), false);
         this.galleryContainer.addEventListener('touchmove', this.handleTouchMove.bind(this), false);
         this.galleryContainer.addEventListener('touchend', this.handleTouchEnd.bind(this), false);
+
+        // Mouse wheel zooming
+        this.galleryContainer.addEventListener('wheel', this.handleZoom.bind(this), { passive: false });
+
+        // Reset zoom when clicking on image
+        this.currentImage.addEventListener('click', () => {
+            if (this.isZooming) {
+                this.resetZoom();
+                this.isZooming = false;
+            }
+        });
     }
 
     preventDefaults(e) {
@@ -115,6 +128,9 @@ class GalleryApp {
             this.currentImage.src = this.images[this.currentIndex].src;
             this.currentImage.alt = this.images[this.currentIndex].name;
             this.currentImage.style.display = 'block';
+
+            // Reset zoom level when changing images
+            this.resetZoom();
 
             // Update active thumbnail
             this.updateActiveThumbnail();
@@ -247,6 +263,59 @@ class GalleryApp {
 
     handleTouchEnd() {
         this.touchStartX = null;
+    }
+
+    handleZoom(e) {
+        e.preventDefault();
+
+        const image = this.currentImage;
+        if(!image) return;
+
+        // Calculate zoom factor (adjust the multiplier as needed for sensitivity)
+        const zoomIntensity = 0.1;
+        const delta = e.deltaY > 0 ? -zoomIntensity : zoomIntensity;
+        let newZoomLevel = this.zoomLevel + delta;
+
+        // Limit zoom levels
+        if (newZoomLevel < 1.0) {
+            newZoomLevel = 1.0;
+        } else if (newZoomLevel > 3) {
+            newZoomLevel = 3;
+        }
+
+        // Only update if zoom level actually changed
+        if (newZoomLevel !== this.zoomLevel) {
+            
+            // Get current mouse position relative to the container
+            const container = document.getElementById('imageContainer');
+            const containerRect = container.getBoundingClientRect();
+            const prevFocusX = e.clientX - containerRect.left;
+            const prevFocusY = e.clientY - containerRect.top;
+
+            this.zoomLevel = newZoomLevel;
+
+            // Apply the zoom transform with position adjustment
+            const centerX = containerRect.width / 2;
+            const centerY = containerRect.height / 2;
+
+            // Calculate offset needed to keep zoom center at mouse position
+            const offsetX = (prevFocusX - centerX) * (1 - this.zoomLevel);
+            const offsetY = (prevFocusY - centerY) * (1 - this.zoomLevel);
+
+            // Apply both scale and translation
+            image.style.transform = `scale(${this.zoomLevel}) translate(${offsetX}px, ${offsetY}px)`;
+
+            // Set flag to indicate we're zooming
+            this.isZooming = true;
+        }
+    }
+
+    resetZoom() {
+        const image = this.currentImage;
+        if(!image) return;
+        this.zoomLevel = 1;
+        image.style.transform = 'scale(1)';
+        image.style.transformOrigin = 'center center';
     }
 }
 
