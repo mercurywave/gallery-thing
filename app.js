@@ -136,6 +136,9 @@ class GalleryApp {
                     this.images.push(mediaData);
                     this.updateGallery();
 
+                    const generator = this.generateThumbnail(mediaData);
+                    generator.then(() => this.updateGallery());
+
                     // If this is the first image, show it
                     if (this.images.length === 1) {
                         this.showCurrentImage();
@@ -147,6 +150,110 @@ class GalleryApp {
 
                 reader.readAsDataURL(file);
             }
+        });
+    }
+
+    generateThumbnail(mediaData, seekTime = 1.0) {
+        return new Promise((resolve, reject) => {
+            if (!mediaData || !mediaData.src || !mediaData.type) {
+                return reject(new Error("Invalid mediaData object"));
+            }
+
+            // Helper: draw a square-cropped image/video frame into a canvas
+            function drawSquareThumbnail(source) {
+                const w = source.videoWidth || source.width;
+                const h = source.videoHeight || source.height;
+                const size = Math.min(w, h);
+
+                const sx = (w - size) / 2;
+                const sy = (h - size) / 2;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = size;
+                canvas.height = size;
+                const ctx = canvas.getContext('2d');
+
+                // Draw the square crop
+                ctx.drawImage(source, sx, sy, size, size, 0, 0, size, size);
+
+                // Draw the blue play button
+                const btnSize = size * 0.22; // scales with thumbnail size
+                const padding = size * 0.05;
+                const x = padding;
+                const y = size - btnSize - padding;
+
+                ctx.fillStyle = "rgba(0, 122, 255, 0.9)"; // blue
+                ctx.beginPath();
+                ctx.arc(x + btnSize / 2, y + btnSize / 2, btnSize / 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // White triangle
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                const triX = x + btnSize * 0.38;
+                const triY = y + btnSize * 0.28;
+                ctx.moveTo(triX, triY);
+                ctx.lineTo(triX, triY + btnSize * 0.44);
+                ctx.lineTo(triX + btnSize * 0.38, triY + btnSize * 0.22);
+                ctx.closePath();
+                ctx.fill();
+
+                return canvas;
+            }
+
+            // --- IMAGE CASE --------------------------------------------------------
+            if (mediaData.type === 'image') {
+                mediaData.thumbnail = mediaData.src;
+                resolve(mediaData);
+                return;
+            }
+
+            // --- VIDEO CASE --------------------------------------------------------
+            if (mediaData.type === 'video') {
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.muted = true;
+                video.src = mediaData.src;
+                video.playsInline = true;
+
+                video.addEventListener('loadedmetadata', () => {
+                    const t = Math.min(seekTime, Math.max(0, video.duration - 0.1));
+                    try {
+                        video.currentTime = t;
+                    } catch {
+                        setTimeout(() => (video.currentTime = t), 200);
+                    }
+                });
+
+                video.addEventListener('seeked', () => {
+                    try {
+                        const canvas = drawSquareThumbnail(video);
+                        canvas.toBlob(
+                            blob => {
+                                if (blob) {
+                                    mediaData.thumbnail = URL.createObjectURL(blob);
+                                    resolve(mediaData);
+                                } else {
+                                    mediaData.thumbnail = canvas.toDataURL("image/png");
+                                    resolve(mediaData);
+                                }
+                            },
+                            "image/png",
+                            0.9
+                        );
+                    } catch (err) {
+                        reject(err);
+                    }
+                });
+
+                video.addEventListener('error', () => {
+                    reject(new Error("Video failed to load"));
+                });
+
+                return;
+            }
+
+            reject(new Error("Unsupported media type"));
         });
     }
 
@@ -164,11 +271,6 @@ class GalleryApp {
             thumbnail.alt = image.name;
             thumbnail.className = 'thumbnail';
             thumbnail.dataset.index = index;
-
-            // Set appropriate thumbnail for video files
-            if (image.type === 'video') {
-                thumbnail.style.filter = 'grayscale(100%)'; // Make video thumbnails look different
-            }
 
             thumbnail.addEventListener('click', () => {
                 this.navigateToImage(index);
