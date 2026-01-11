@@ -148,8 +148,11 @@ class GalleryApp {
         }
     }
 
-    processFiles(files) {
-        Array.from(files).forEach(file => {
+processFiles(files) {
+        // Create an array to store file processing data with their original index
+        const filesData = [];
+        
+        Array.from(files).forEach((file, index) => {
             if (file.type.startsWith('image/') || file.type.startsWith('video/')) {
                 const reader = new FileReader();
 
@@ -157,7 +160,8 @@ class GalleryApp {
                     const mediaData = {
                         src: e.target.result,
                         name: file.name,
-                        type: file.type.startsWith('image/') ? 'image' : 'video'
+                        type: file.type.startsWith('image/') ? 'image' : 'video',
+                        originalIndex: index  // Track the original order
                     };
 
                     // For videos, we'll generate a thumbnail
@@ -165,25 +169,49 @@ class GalleryApp {
                         mediaData.thumbnail = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80"><rect width="120" height="80" fill="%23333"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%23fff">VIDEO</text></svg>';
                     }
 
-                    this.images.push(mediaData);
-                    this.updateGallery();
+                    // Store the mediaData with its original index
+                    filesData.push(mediaData);
+                    
+                    // Process all files in order when they're all done
+                    if (filesData.length === files.length) {
+                        // Sort by original index to maintain order
+                        filesData.sort((a, b) => a.originalIndex - b.originalIndex);
+                        
+                        // Add files in correct order
+                        filesData.forEach(mediaData => {
+                            this.images.push(mediaData);
+                        });
+                        
+                        this.updateGallery();
 
-                    const generator = this.generateThumbnail(mediaData);
-                    generator.then(() => this.updateGallery());
-
-                    // If this is the first image, show it
-                    if (this.images.length === 1) {
-                        this.showCurrentImage();
-                        this.hideZeroStateMessage();
-                    } else {
-                        // If there are already images, navigate to the newly added one
-                        this.navigateToImage(this.images.length - 1);
+                        // Process thumbnails for all media items
+                        const thumbnailPromises = filesData.map(mediaData => 
+                            this.generateThumbnail(mediaData)
+                        );
+                        
+                        Promise.all(thumbnailPromises).then(() => {
+                            this.updateGallery();
+                            
+                            // If this is the first image, show it
+                            if (this.images.length === 1) {
+                                this.showCurrentImage();
+                                this.hideZeroStateMessage();
+                            } else {
+                                // If there are already images, navigate to the newly added one
+                                this.navigateToImage(this.images.length - 1);
+                            }
+                        });
                     }
                 };
 
                 reader.readAsDataURL(file);
             }
         });
+        
+        // Handle case when no valid files are dropped
+        if (files.length === 0) {
+            return;
+        }
     }
 
     generateThumbnail(mediaData, seekTime = 1.0) {
