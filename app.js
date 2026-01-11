@@ -29,6 +29,7 @@ class GalleryApp {
         this.prevBtn = document.getElementById('prevBtn');
         this.nextBtn = document.getElementById('nextBtn');
         this.playPauseBtn = document.getElementById('playPauseBtn');
+        this.zeroStateMessage = document.getElementById('zeroStateMessage');
     }
 
     bindEvents() {
@@ -170,6 +171,7 @@ class GalleryApp {
                     // If this is the first image, show it
                     if (this.images.length === 1) {
                         this.showCurrentImage();
+                        this.hideZeroStateMessage();
                     } else {
                         // If there are already images, navigate to the newly added one
                         this.navigateToImage(this.images.length - 1);
@@ -318,6 +320,13 @@ class GalleryApp {
 
         // Update active thumbnail
         this.updateActiveThumbnail();
+        
+        // Show or hide zero state message based on whether there are images
+        if (this.images.length === 0) {
+            this.showZeroStateMessage();
+        } else {
+            this.hideZeroStateMessage();
+        }
     }
 
     showCurrentImage() {
@@ -689,6 +698,7 @@ class GalleryApp {
                     this.currentVideo.src = '';
                     this.currentVideo.style.display = 'none';
                 }
+                this.showZeroStateMessage();
             }
             // If there are items left, navigate to the next item or previous if at end
             else {
@@ -709,6 +719,18 @@ class GalleryApp {
 
         // Update the gallery to reflect the removal
         this.updateGallery();
+    }
+    
+    showZeroStateMessage() {
+        if (this.zeroStateMessage) {
+            this.zeroStateMessage.style.display = 'block';
+        }
+    }
+    
+    hideZeroStateMessage() {
+        if (this.zeroStateMessage) {
+            this.zeroStateMessage.style.display = 'none';
+        }
     }
 }
 
