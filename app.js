@@ -5,6 +5,7 @@ class GalleryApp {
         this.isSlideshowPlaying = false;
         this.thumbnails = [];
         this.hoverTimeout = null;
+        this.fadeTimeout = null;
         this.zoomLevel = 1;
         this.translateX = 0;
         this.translateY = 0;
@@ -43,9 +44,36 @@ class GalleryApp {
         this.nextBtn.addEventListener('click', () => this.navigateToNext());
         this.playPauseBtn.addEventListener('click', () => this.toggleSlideshow());
 
-        // Hover events for controls
+        // Hover events for controls - show on mouse enter, hide after delay on mouse leave
         this.dropZone.addEventListener('mouseenter', () => this.showControls());
         this.dropZone.addEventListener('mouseleave', () => this.hideControls());
+        
+        // Mouse move event to show controls and reset fade timer
+        this.dropZone.addEventListener('mousemove', (e) => {
+            this.showControls();
+            this.resetFadeTimer();
+        });
+        
+        // Add hover events for controls themselves to prevent them from hiding
+        this.thumbnailStrip.addEventListener('mouseenter', () => {
+            if (this.fadeTimeout) {
+                clearTimeout(this.fadeTimeout);
+            }
+        });
+        
+        this.thumbnailStrip.addEventListener('mouseleave', () => {
+            this.resetFadeTimer();
+        });
+        
+        this.navigationControls.addEventListener('mouseenter', () => {
+            if (this.fadeTimeout) {
+                clearTimeout(this.fadeTimeout);
+            }
+        });
+        
+        this.navigationControls.addEventListener('mouseleave', () => {
+            this.resetFadeTimer();
+        });
 
         // Touch events for mobile
         this.galleryContainer.addEventListener('touchstart', this.handleTouchStart.bind(this), false);
@@ -429,6 +457,11 @@ class GalleryApp {
         if (this.hoverTimeout) {
             clearTimeout(this.hoverTimeout);
         }
+        
+        // Clear fade timeout to prevent hiding while hovering
+        if (this.fadeTimeout) {
+            clearTimeout(this.fadeTimeout);
+        }
 
         // Show thumbnail strip and navigation controls
         this.thumbnailStrip.classList.add('visible');
@@ -440,6 +473,22 @@ class GalleryApp {
         this.hoverTimeout = setTimeout(() => {
             this.thumbnailStrip.classList.remove('visible');
             this.navigationControls.classList.remove('visible');
+        }, 1000);
+    }
+    
+    resetFadeTimer() {
+        // Clear any existing fade timeout
+        if (this.fadeTimeout) {
+            clearTimeout(this.fadeTimeout);
+        }
+        
+        // Set a new timeout to hide controls after 3 seconds of inactivity
+        this.fadeTimeout = setTimeout(() => {
+            // Only hide if we're not currently hovering over the controls
+            if (!this.thumbnailStrip.matches(':hover') && !this.navigationControls.matches(':hover')) {
+                this.thumbnailStrip.classList.remove('visible');
+                this.navigationControls.classList.remove('visible');
+            }
         }, 1000);
     }
 
