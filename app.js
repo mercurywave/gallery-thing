@@ -17,6 +17,9 @@ class GalleryApp {
         this.initializeElements();
         this.bindEvents();
         this.setupKeyboardNavigation();
+        
+        // Hide navigation controls on initial load
+        this.navigationControls.style.display = 'none';
     }
 
     initializeElements() {
@@ -327,6 +330,13 @@ class GalleryApp {
         } else {
             this.hideZeroStateMessage();
         }
+        
+        // Hide navigation controls if there are fewer than 2 images
+        if (this.images.length < 2) {
+            this.navigationControls.style.display = 'none';
+        } else {
+            this.navigationControls.style.display = 'flex';
+        }
     }
 
     showCurrentImage() {
@@ -368,6 +378,13 @@ class GalleryApp {
             // Update active thumbnail
             this.updateActiveThumbnail();
             this.queueAutoAdvance();
+            
+            // Hide navigation controls if there are fewer than 2 images
+            if (this.images.length < 2) {
+                this.navigationControls.style.display = 'none';
+            } else {
+                this.navigationControls.style.display = 'flex';
+            }
         }
     }
 
@@ -719,6 +736,13 @@ class GalleryApp {
 
         // Update the gallery to reflect the removal
         this.updateGallery();
+        
+        // Hide navigation controls if there are fewer than 2 images
+        if (this.images.length < 2) {
+            this.navigationControls.style.display = 'none';
+        } else {
+            this.navigationControls.style.display = 'flex';
+        }
     }
     
     showZeroStateMessage() {
